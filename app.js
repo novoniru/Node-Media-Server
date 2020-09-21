@@ -63,7 +63,10 @@ nms.on('prePublish', (id, StreamPath, args) => {
 
 nms.authorizer('prePublish', async ({id, stream, data}) => {
   console.log(id, stream, data);
-  const result = await Promise.resolve(false)
+  const result = await Promise.resolve(true).then(() => {
+    let session = nms.getSession(id);
+    session.setPublishStreamPath('potatoes')
+  }).then(() => true)
   return result;
 })
 

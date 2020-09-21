@@ -176,11 +176,11 @@ class NodeRtmpSession {
   }
 
   setPublishStreamPath(path) {
-    this.publishStreamPath = path;
+    this.publishStreamPath = `/${this.appname}/${path}`;
   }
 
   setPlayStreamPath(path) {
-    this.playStreamPath = path;
+    this.playStreamPath = `/${this.appname}/${path}`;
   }
 
   run() {
@@ -1040,7 +1040,7 @@ class NodeRtmpSession {
     if (typeof invokeMessage.streamName !== "string") {
       return;
     }
-    this.setPublishStreamPath(`/${this.appname}/${invokeMessage.streamName.split("?")[0]}`);
+    this.setPublishStreamPath(`${invokeMessage.streamName.split("?")[0]}`);
     this.publishArgs = QueryString.parse(invokeMessage.streamName.split("?")[1]);
     this.publishStreamId = this.parserPacket.header.stream_id;
     context.nodeEvent.emit("prePublish", this.id, this.publishStreamPath, this.publishArgs);
@@ -1115,7 +1115,7 @@ class NodeRtmpSession {
     if (typeof invokeMessage.streamName !== "string") {
       return;
     }
-    this.setPlayStreamPath(`/${this.appname}/${invokeMessage.streamName.split("?")[0]}`);
+    this.setPlayStreamPath(`${invokeMessage.streamName.split("?")[0]}`);
     this.playArgs = QueryString.parse(invokeMessage.streamName.split("?")[1]);
     this.playStreamId = this.parserPacket.header.stream_id;
     context.nodeEvent.emit("prePlay", this.id, this.playStreamPath, this.playArgs);
