@@ -175,6 +175,14 @@ class NodeRtmpSession {
     context.sessions.set(this.id, this);
   }
 
+  setPublishStreamPath(path) {
+    this.publishStreamPath = path;
+  }
+
+  setPlayStreamPath(path) {
+    this.playStreamPath = path;
+  }
+
   run() {
     this.socket.on("data", this.onSocketData.bind(this));
     this.socket.on("close", this.onSocketClose.bind(this));
@@ -974,12 +982,26 @@ class NodeRtmpSession {
     this.sendRtmpSampleAccess();
   }
 
-  onConnect(invokeMessage) {
+  async onConnect(invokeMessage) {
     invokeMessage.cmdObj.app = invokeMessage.cmdObj.app.replace("/", ""); //fix jwplayer
     context.nodeEvent.emit("preConnect", this.id, invokeMessage.cmdObj);
     if (!this.isStarting) {
       return;
     }
+
+    const preConnectAuthorized = await context.eventAuthorizer.run('preConnect', {
+      id: this.id,
+      stream: {
+        app: invokeMessage.cmdObj.app,
+        path: invokeMessage.cmdObj.tcUrl
+      },
+      data: invokeMessage.cmdObj
+    });
+    if (!preConnectAuthorized) {
+      this.reject();
+      return;
+    }
+
     this.connectCmdObj = invokeMessage.cmdObj;
     this.appname = invokeMessage.cmdObj.app;
     this.objectEncoding = invokeMessage.cmdObj.objectEncoding != null ? invokeMessage.cmdObj.objectEncoding : 0;
@@ -993,6 +1015,20 @@ class NodeRtmpSession {
     this.setChunkSize(this.outChunkSize);
     this.respondConnect(invokeMessage.transId);
     Logger.log(`[rtmp connect] id=${this.id} ip=${this.ip} app=${this.appname} args=${JSON.stringify(invokeMessage.cmdObj)}`);
+
+    const postConnectAuthorized = await context.eventAuthorizer.run('postConnect', {
+      id: this.id,
+      stream: {
+        app: invokeMessage.cmdObj.app,
+        path: invokeMessage.cmdObj.tcUrl
+      },
+      data: invokeMessage.cmdObj
+    });
+    if (!postConnectAuthorized) {
+      this.reject();
+      return;
+    }
+
     context.nodeEvent.emit("postConnect", this.id, invokeMessage.cmdObj);
   }
 
@@ -1000,15 +1036,30 @@ class NodeRtmpSession {
     this.respondCreateStream(invokeMessage.transId);
   }
 
-  onPublish(invokeMessage) {
+  async onPublish(invokeMessage) {
     if (typeof invokeMessage.streamName !== "string") {
       return;
     }
-    this.publishStreamPath = "/" + this.appname + "/" + invokeMessage.streamName.split("?")[0];
+    this.setPublishStreamPath(`/${this.appname}/${invokeMessage.streamName.split("?")[0]}`);
     this.publishArgs = QueryString.parse(invokeMessage.streamName.split("?")[1]);
     this.publishStreamId = this.parserPacket.header.stream_id;
     context.nodeEvent.emit("prePublish", this.id, this.publishStreamPath, this.publishArgs);
     if (!this.isStarting) {
+      return;
+    }
+
+    const prePublishAuthorized = await context.eventAuthorizer.run('prePublish', {
+      id: this.id,
+      stream: {
+        id: this.publishStreamId,
+        app: this.appname,
+        path: this.publishStreamPath,
+        key: invokeMessage.streamName.split("?")[0],
+      },
+      data: this.publishArgs
+    });
+    if (!prePublishAuthorized) {
+      this.reject();
       return;
     }
 
@@ -1041,20 +1092,50 @@ class NodeRtmpSession {
           context.idlePlayers.delete(idlePlayerId);
         }
       }
+
+      const postPublishAuthorized = await context.eventAuthorizer.run('postPublish', {
+        id: this.id,
+        stream: {
+          id: this.publishStreamId,
+          app: this.appname,
+          path: this.publishStreamPath,
+          key: invokeMessage.streamName.split("?")[0],
+        },
+        data: this.publishArgs
+      });
+      if (!postPublishAuthorized) {
+        this.reject();
+        return;
+      }
       context.nodeEvent.emit("postPublish", this.id, this.publishStreamPath, this.publishArgs);
     }
   }
 
-  onPlay(invokeMessage) {
+  async onPlay(invokeMessage) {
     if (typeof invokeMessage.streamName !== "string") {
       return;
     }
-    this.playStreamPath = "/" + this.appname + "/" + invokeMessage.streamName.split("?")[0];
+    this.setPlayStreamPath(`/${this.appname}/${invokeMessage.streamName.split("?")[0]}`);
     this.playArgs = QueryString.parse(invokeMessage.streamName.split("?")[1]);
     this.playStreamId = this.parserPacket.header.stream_id;
     context.nodeEvent.emit("prePlay", this.id, this.playStreamPath, this.playArgs);
 
     if (!this.isStarting) {
+      return;
+    }
+
+    const prePlayAuthorized = await context.eventAuthorizer.run('prePlay', {
+      id: this.id,
+      stream: {
+        id: this.playStreamId,
+        app: this.appname,
+        path: this.playStreamPath,
+        key: invokeMessage.streamName.split("?")[0],
+      },
+      data: this.playArgs
+    });
+    if (!prePlayAuthorized) {
+      this.reject();
       return;
     }
 
@@ -1083,7 +1164,7 @@ class NodeRtmpSession {
     }
   }
 
-  onStartPlay() {
+  async onStartPlay() {
     let publisherId = context.publishers.get(this.playStreamPath);
     let publisher = context.sessions.get(publisherId);
     let players = publisher.players;
@@ -1134,6 +1215,21 @@ class NodeRtmpSession {
 
     this.isIdling = false;
     this.isPlaying = true;
+
+    const postPlayAuthorized = await context.eventAuthorizer.run('postPlay', {
+      id: this.id,
+      stream: {
+        id: this.playStreamId,
+        app: this.appname,
+        path: this.playStreamPath,
+      },
+      data: this.playArgs
+    });
+    if (!postPlayAuthorized) {
+      this.reject();
+      return;
+    }
+
     context.nodeEvent.emit("postPlay", this.id, this.playStreamPath, this.playArgs);
     Logger.log(`[rtmp play] Join stream. id=${this.id} streamPath=${this.playStreamPath}  streamId=${this.playStreamId} `);
   }

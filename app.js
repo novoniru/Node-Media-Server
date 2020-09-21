@@ -61,6 +61,12 @@ nms.on('prePublish', (id, StreamPath, args) => {
   // session.reject();
 });
 
+nms.authorizer('prePublish', async ({id, stream, data}) => {
+  console.log(id, stream, data);
+  const result = await Promise.resolve(false)
+  return result;
+})
+
 nms.on('postPublish', (id, StreamPath, args) => {
   console.log('[NodeEvent on postPublish]', `id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`);
 });

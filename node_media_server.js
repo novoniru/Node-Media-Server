@@ -96,6 +96,10 @@ class NodeMediaServer {
     context.nodeEvent.on(eventName, listener);
   }
 
+  authorizer(eventName, listener) {
+    context.eventAuthorizer.on(eventName, listener);
+  }
+
   stop() {
     if (this.nrs) {
       this.nrs.stop();
